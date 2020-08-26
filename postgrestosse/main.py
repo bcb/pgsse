@@ -2,7 +2,7 @@
 import asyncio
 import json
 import os
-from typing import Any, AsyncGenerator, Dict, Generator, Union
+from typing import Any, AsyncGenerator, Generator
 
 import psycopg2  # type: ignore
 import psycopg2.extensions  # type: ignore
@@ -22,24 +22,30 @@ def get_db() -> Generator[Any, None, None]:
         db.close()
 
 
-def sse(value: Union[Dict[str, Any], str]) -> str:
+def sse(value: str) -> str:
     """
+    Takes a string, potentially containing a json object, and returns an SSE event
+    message.
+
     Args:
-        value: Should be either a dict containing "data" and optionally "event", or just
-            a string to send a comment.
+        value: Should be either a JSON encoded string, containing "data" and optionally
+            "event", or anything else to send a comment.
 
     Examples:
         sse({"data": 1})
         sse({"event": "", "data": 1})
         sse("This is a comment")
     """
-    if isinstance(value, dict):
-        if "event" in value:
-            return f"event: {value['event']}\ndata: {value['data']}\n\n"
-        else:
-            return f"data: {value['data']}\n\n"
-    else:
+    try:
+        deserialized = json.loads(value)
+    except json.decoder.JSONDecodeError:
         return f": {value}\n\n"
+    else:
+        return (
+            f"event: {deserialized['event']}\ndata: {deserialized['data']}\n\n"
+            if "event" in deserialized
+            else f"data: {deserialized['data']}\n\n"
+        )
 
 
 async def event_stream(
@@ -55,12 +61,14 @@ async def event_stream(
             break
         db.poll()
         while db.notifies:
-            yield sse(json.loads(db.notifies.pop(0).payload))
+            v = db.notifies.pop(0)
+            print(v)
+            yield sse(v.payload)
             last_heartbeat = asyncio.get_running_loop().time()
         if asyncio.get_running_loop().time() >= last_heartbeat + 25:
             yield sse("Heartbeat")
             last_heartbeat = asyncio.get_running_loop().time()
-        await asyncio.sleep(0.001)
+        # await asyncio.sleep(0.001)
 
 
 @app.get("/{channel}")  # Should also receive token
