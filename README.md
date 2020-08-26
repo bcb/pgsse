@@ -6,7 +6,7 @@ Relay Postgres notifications as Server-Sent Events.
 
 Bring up the Docker image.
 ```sh
-docker run --rm -e POSTGRES_URI='postgresql://user:pass@localhost:5432/db' --port 8000:8000 liveteams/postgresevents
+docker run --rm -e POSTGRES_URI='postgresql://user:pass@localhost:5432/db' --port 8000:8000 liveteams/postgrestosse
 ```
 
 Send a Postgres notification - the payload should be a JSON object with a
@@ -35,12 +35,12 @@ Listen to the event stream with an HTTP GET request.
 $ curl http://localhost:8000/my-channel
 event: my-event
 data: 1
-id: 66c719e6-82f0-4c38-a7ab-15cecda933ff
+id: 1
 
 
 ```
 
 ## Development
 ```sh
-POSTGRES_URI="postgresql://user:pass@localhost:5432/db" uvicorn postgresevents.main:app --reload
+POSTGRES_URI="postgresql://user:pass@localhost:5432/db" uvicorn postgrestosse.main:app --reload
 ```
