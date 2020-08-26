@@ -61,9 +61,7 @@ async def event_stream(
             break
         db.poll()
         while db.notifies:
-            v = db.notifies.pop(0)
-            print(v)
-            yield sse(v.payload)
+            yield sse(db.notifies.pop(0).payload)
             last_heartbeat = asyncio.get_running_loop().time()
         if asyncio.get_running_loop().time() >= last_heartbeat + 25:
             yield sse("Heartbeat")
