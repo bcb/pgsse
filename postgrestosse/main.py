@@ -1,6 +1,5 @@
 """Listen for Postgres notifications and send them as Server-Sent Events."""
 import asyncio
-import itertools
 import json
 import os
 from typing import Any, AsyncGenerator, Dict, Generator, Union
@@ -11,7 +10,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import StreamingResponse
 
 app: FastAPI = FastAPI()
-ids = itertools.count(1)
 
 
 def get_db() -> Generator[Any, None, None]:
@@ -37,13 +35,11 @@ def sse(value: Union[Dict[str, Any], str]) -> str:
     """
     if isinstance(value, dict):
         if "event" in value:
-            return (
-                f"event: {value['event']}\ndata: {value['data']}\nid: {next(ids)}\n\n"
-            )
+            return f"event: {value['event']}\ndata: {value['data']}\n\n"
         else:
-            return f"data: {value['data']}\nid: {next(ids)}\n\n"
+            return f"data: {value['data']}\n\n"
     else:
-        return f": {value}\nid: {next(ids)}\n\n"
+        return f": {value}\n\n"
 
 
 async def event_stream(
