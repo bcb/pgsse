@@ -1,0 +1,35 @@
+fail_fast: true
+repos:
+  - repo: https://github.com/ambv/black
+    rev: 'master'
+    hooks:
+      - id: black
+        exclude: ^(alembic)/
+        args: [--diff, --check]
+
+  - repo: https://github.com/pre-commit/mirrors-pylint
+    rev: 'master'
+    hooks:
+      - id: pylint
+        exclude: ^(alembic)/
+        args: [--disable=all, --enable=unused-import]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v0.770'
+    hooks:
+      - id: mypy
+        exclude: ^(tests|alembic)/
+        language: system
+        args:
+          - --check-untyped-defs
+          - --disallow-incomplete-defs
+          - --disallow-any-generics
+          - --disallow-untyped-calls
+          - --disallow-untyped-decorators
+          - --disallow-untyped-defs
+          - --no-implicit-optional
+          - --strict-equality
+          - --warn-redundant-casts
+          - --warn-return-any
+          - --warn-unused-configs
+          - --warn-unused-ignores
