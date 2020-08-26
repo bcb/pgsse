@@ -1,14 +1,15 @@
-"""Listens for Postgres notifications, passes them through as Server-Sent Events."""
+"""Listen for Postgres notifications and send them as Server-Sent Events."""
 import asyncio
 import json
 import os
 import select
 from typing import Any, AsyncGenerator, Generator, Optional
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import StreamingResponse
 import psycopg2  # type: ignore
 import psycopg2.extensions  # type: ignore
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import StreamingResponse
 
 app: FastAPI = FastAPI()
 
@@ -23,12 +24,12 @@ def get_db() -> Generator[Any, None, None]:
         db.close()
 
 
-def sse(*, type: str, data: Optional[str] = None, id: int = 0) -> str:
-    return f"event: {type}\ndata: {data}\nid: {id}\n\n"
+def sse(*, type: str, data: Optional[str] = None, id: str) -> str:
+    return f"event: {type}\ndata: {data}\nid: {id or uuid4()}\n\n"
 
 
 async def event_stream(
-    request: Request, db: Any, channel: str, last_event_id: int
+    request: Request, db: Any, channel: str, last_event_id: str
 ) -> AsyncGenerator[str, None]:
     # Send an initial message to ping the client, because it doesn't get the onopen
     # event until receiving an event.
@@ -40,8 +41,8 @@ async def event_stream(
             break
         db.poll()
         while db.notifies:
-            payload = json.loads(db.notifies.pop(0).payload)
-            yield sse(type=payload[0], data=json.dumps(payload[1]))
+            type_, data = json.loads(db.notifies.pop(0).payload)
+            yield sse(type=type_, data=json.dumps(data))
             last_heartbeat = asyncio.get_running_loop().time()
         if asyncio.get_running_loop().time() >= last_heartbeat + 25:
             yield sse(type="heartbeat")
@@ -52,7 +53,7 @@ async def event_stream(
 @app.get("/{channel}")  # Should also receive token
 async def events(channel: str, request: Request, db: Any = Depends(get_db)) -> None:
     await StreamingResponse(
-        event_stream(request, db, channel, request.headers.get("Last-Event-ID", 0)),
+        event_stream(request, db, channel, request.headers.get("Last-Event-ID", "")),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-transform"},
     )(request.scope, request.receive, request._send)
