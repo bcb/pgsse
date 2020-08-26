@@ -20,10 +20,8 @@ For named events, include an "event" key.
 pg_notify('my-channel', '{"event": "my-event", "data": 1}')
 ```
 
-You can also use `json_build_array`.
-```sql
-pg_notify('my-channel', json_build_array('event', 'my-event', 'data', 1)::text)
-```
+Likely you'll want to use Postgres's [JSON
+functions](https://www.postgresql.org/docs/current/functions-json.html).
 
 For a comment, simply pass a string.
 ```sql
