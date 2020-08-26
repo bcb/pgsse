@@ -1,25 +1,46 @@
-# PostgresEvents
+# postgrestosse
 
-Listens for Postgres NOTIFY notifications, broadcasting them as Server-Sent Events.
+Relay Postgres notifications as Server-Sent Events.
 
 ## Usage
 
-Bring up the Docker image, serving events on port 4000:
+Bring up the Docker image.
 ```sh
-docker run --rm -e POSTGRES_DB='postgresql://user:pass@localhost:5432/db' --port 4000:3000 liveteams/postgresevents
+docker run --rm -e POSTGRES_URI='postgresql://user:pass@localhost:5432/db' --port 8000:8000 liveteams/postgresevents
 ```
 
-Send a notification in Postgres:
-```psql
-psql -U user -d db -c "select pg_notify('channel', json_build_array('event', 'data')::text)"
+Send a Postgres notification - the payload should be a JSON object with a
+"data" key.
+```sql
+pg_notify('my-channel', '{"data": 1}')
 ```
 
-Listen to SSE events with an HTTP GET request:
+For named events, include an "event" key.
+```sql
+pg_notify('my-channel', '{"event": "my-event", "data": 1}')
+```
+
+You can also use `json_build_array`.
+```sql
+pg_notify('my-channel', json_build_array('event', 'my-event', 'data', 1)::text)
+```
+
+For a comment, simply pass a string.
+```sql
+pg_notify('my-channel', 'This is a comment')
+```
+
+Listen to the event stream with an HTTP GET request.
 ```sh
-curl http://localhost:4000
-event: event
-data: data
-id: 0
+$ curl http://localhost:8000/my-channel
+event: my-event
+data: 1
+id: 66c719e6-82f0-4c38-a7ab-15cecda933ff
 
 
+```
+
+## Development
+```sh
+POSTGRES_URI="postgresql://user:pass@localhost:5432/db" uvicorn postgresevents.main:app --reload
 ```

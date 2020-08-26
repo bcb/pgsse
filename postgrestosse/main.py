@@ -2,9 +2,7 @@
 import asyncio
 import json
 import os
-import select
-from typing import Any, AsyncGenerator, Generator, Optional
-from uuid import uuid4
+from typing import Any, AsyncGenerator, Dict, Generator, Union
 
 import psycopg2  # type: ignore
 import psycopg2.extensions  # type: ignore
@@ -15,7 +13,7 @@ app: FastAPI = FastAPI()
 
 
 def get_db() -> Generator[Any, None, None]:
-    db = psycopg2.connect(os.environ["POSTGRES_URL"])
+    db = psycopg2.connect(os.environ["POSTGRES_URI"])
     # Listening doesn't work without this, but no explanation why in psycopg2 docs
     db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     try:
@@ -24,8 +22,25 @@ def get_db() -> Generator[Any, None, None]:
         db.close()
 
 
-def sse(*, type: str, data: Optional[str] = None, id: str) -> str:
-    return f"event: {type}\ndata: {data}\nid: {id or uuid4()}\n\n"
+def sse(value: Union[Dict[str, Any], str]) -> str:
+    """
+    Args:
+        value: Should be either a dict containing "data" and optionally "event", or just
+            a string to send a comment.
+
+    Examples:
+        sse({"data": 1})
+        sse({"event": "", "data": 1})
+        sse("This is a comment")
+    """
+
+    if isinstance(value, dict):
+        if "event" in value:
+            return f"event: {value['event']}\ndata: {value['data']}\n\n"
+        else:
+            return f"data: {value['data']}\n\n"
+    else:
+        return f": {value}\n\n"
 
 
 async def event_stream(
@@ -33,7 +48,7 @@ async def event_stream(
 ) -> AsyncGenerator[str, None]:
     # Send an initial message to ping the client, because it doesn't get the onopen
     # event until receiving an event.
-    yield sse(type="heartbeat")
+    yield sse("Heartbeat")
     last_heartbeat = asyncio.get_running_loop().time()
     db.cursor().execute(f'LISTEN "{channel}";')
     while True:
@@ -41,11 +56,10 @@ async def event_stream(
             break
         db.poll()
         while db.notifies:
-            type_, data = json.loads(db.notifies.pop(0).payload)
-            yield sse(type=type_, data=json.dumps(data))
+            yield sse(json.loads(db.notifies.pop(0).payload))
             last_heartbeat = asyncio.get_running_loop().time()
         if asyncio.get_running_loop().time() >= last_heartbeat + 25:
-            yield sse(type="heartbeat")
+            yield sse("Heartbeat")
             last_heartbeat = asyncio.get_running_loop().time()
         await asyncio.sleep(0.001)
 
